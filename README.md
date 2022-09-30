@@ -1,6 +1,7 @@
-Implementation of a stack in c with two types of protection for different data structures.
+# Stack 
+Realisation of a stack in C with two types of protection for different data structures.
 
-# Using other type of elements
+## Using other type of elements
 To specify the data type you are using, use
 ```c++
 typedef *data_type* Elem;
@@ -16,7 +17,7 @@ to right value. This need to normal logging:
 * 3 - double
 * 4 - long long
 
-# Using protection
+## Using protection
 ```c++
 #define PROTECTION_LEVEL
 ```
@@ -26,7 +27,7 @@ This define responsible for enabling/disabling protection:
 * Second bit of PROTECTION_LEVEL is 1 - enable  hash protection
 * Second bit of PROTECTION_LEVEL is 0 - disable hash protection
 
-# Logging
+## Logging
 Use
 ```c++
 #define LOGS_TO_FILE
