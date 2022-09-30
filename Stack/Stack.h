@@ -7,6 +7,8 @@
 #include <assert.h>
 #include <string.h>
 
+#include "Hash.h"
+
 #define LOGS_TO_CONSOLE
 
 enum ErrorCodes
@@ -88,7 +90,6 @@ typedef struct Stack
 
 size_t LogPrintf(FILE* fp, const char *format, ...);
 size_t PrintElem(Elem value, FILE *fp = nullptr);
-size_t GetHash(void* struct_ptr, size_t size);
 void DumpStack(Stack *stk, int deep, const char function[], const char file[], int line);
 size_t StackCheck(Stack* stk, int line, const char function[], const char file[]);
 size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]);
@@ -161,20 +162,6 @@ size_t PrintElem(Elem value, FILE *fp)
     #endif
 
     return NO_ERROR; 
-}
-
-size_t GetHash(void* struct_ptr, size_t size)
-{
-    if (struct_ptr == nullptr || size == POISON)
-        return POISON;
-
-    char* ptr = (char*)struct_ptr;
-
-    size_t hash = 5381;
-    for(size_t i = 0; i < size; i++)
-        hash = (size_t)(ptr[0] + hash*33);
-
-    return hash;
 }
 
 //!------------------------------
