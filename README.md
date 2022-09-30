@@ -1,4 +1,5 @@
 Implementation of a stack in c with two types of protection for different data structures.
+
 # Using other type of elements
 To specify the data type you are using, use
 ```c++
@@ -9,21 +10,21 @@ And you should change
 const int OUTPUT_TYPE
 ```
 to right value. This need to normal logging:
-*0 - int
-*1 - char
-*2 - float
-*3 - double
-*4 - long long
+* 0 - int
+* 1 - char
+* 2 - float
+* 3 - double
+* 4 - long long
 
 # Using protection
 ```c++
 #define PROTECTION_LEVEL
 ```
 This define responsible for enabling/disabling protection:
-*First bit of PROTECTION_LEVEL is  1 - enable  canary protection
-*First bit of PROTECTION_LEVEL is  0 - disable canary protection
-*Second bit of PROTECTION_LEVEL is 1 - enable  hash protection
-*Second bit of PROTECTION_LEVEL is 0 - disable hash protection
+* First bit of PROTECTION_LEVEL is  1 - enable  canary protection
+* First bit of PROTECTION_LEVEL is  0 - disable canary protection
+* Second bit of PROTECTION_LEVEL is 1 - enable  hash protection
+* Second bit of PROTECTION_LEVEL is 0 - disable hash protection
 
 # Logging
 Use
