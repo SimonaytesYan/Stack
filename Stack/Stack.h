@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../Strings/_Strings.h"
+#define LOGS_TO_CONSOLE
 
 enum ErrorCodes
 {
@@ -38,13 +38,13 @@ const char ERROR_DESCRIPTION[][150] = {{"Pointer to stack = nullptr\n"},
                                        {"Stack elements was damaged\n"}};
 
 const char LOGS[]           = "StackLogs.txt";
-const int  DUMP_LEVEL       = 1;
+const int  DUMP_LEVEL       = 1; //!This constant is used to print stack elements to logs in right format
 
 #define PROTECTION_LEVEL  3 //! if first bit = 1 canary protection on. if second bit = 1 hash protection on
 #define CANARY_PROTECTION 1
 #define HASH_PROTECTION   2
 
-const double FOR_RESIZE  = 1.618; 
+const double FOR_RESIZE  = 2; 
 const Elem   POISON      = 2147483647;
 const void*  POISON_PTR  = (void*)13;
 const size_t KENAR       = 0xAAAAAAAAADEADDED;
@@ -55,6 +55,57 @@ const int    OUTPUT_TYPE = 0;   //!This constant is used to print stack elements
                                 //!3 - double
                                 //!4 - long long
 
+//!------------------------------
+//!status = true  if stack is ready to be used
+//!status = false if stack wasn`t constructed or was destructed
+//!
+//!------------------------------
+typedef struct LogInfo
+{
+    char name[100]     = "(null)";
+    char function[100] = "(null)";
+    char file[100]     = "(null)";
+    int  line          = POISON;
+    bool status        = false;
+} LogInfo;
+
+typedef struct Stack
+{
+    size_t left_border = KENAR;
+
+    LogInfo debug = {};
+
+    Elem *data     = (Elem*)POISON_PTR;
+    size_t   size     = POISON;
+    size_t   capacity = POISON - 1;
+
+    size_t struct_hash = 0;
+    size_t data_hash   = 0;
+
+    size_t right_border = KENAR ^ 1;
+} Stack;
+
+
+size_t LogPrintf(FILE* fp, const char *format, ...);
+size_t PrintElem(Elem value, FILE *fp = nullptr);
+size_t GetHash(void* struct_ptr, size_t size);
+void DumpStack(Stack *stk, int deep, const char function[], const char file[], int line);
+size_t StackCheck(Stack* stk, int line, const char function[], const char file[]);
+size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]);
+size_t StackDtor(Stack* stk);
+size_t StackResizeUp(Stack* stk);
+size_t StackPush(Stack* stk, Elem value);
+size_t StackResizeDown(Stack* stk);
+Elem StackPop(Stack* stk, size_t *err);
+
+#define DUMP_STACK(stk) DumpStack(&stk, DUMP_LEVEL, __PRETTY_FUNCTION__, __FILE__, __LINE__)
+
+#define OK_ASSERT(stk) {             \
+    StackCheck(&stk, __LINE__, __PRETTY_FUNCTION__, __FILE__);                  \
+    DUMP_STACK(stk);                   \
+}
+
+#define StackCtor(stk, capacity) StackConstructor(stk, capacity, __LINE__, __PRETTY_FUNCTION__, __FILE__, #stk)
 
 size_t LogPrintf(FILE* fp, const char *format, ...)
 {
@@ -71,10 +122,11 @@ size_t LogPrintf(FILE* fp, const char *format, ...)
         vfprintf(fp, format, args);
     #endif
 
+    return NO_ERROR;
     va_end(args);
 }
 
-size_t PrintElem(Elem value, FILE *fp = nullptr)
+size_t PrintElem(Elem value, FILE *fp)
 {
     char format[5] = "%";
     switch (OUTPUT_TYPE)
@@ -98,7 +150,7 @@ size_t PrintElem(Elem value, FILE *fp = nullptr)
             format[3] = 'u';
         break;
     }
-    
+        
     #ifdef LOGS_TO_CONSOLE
         printf(format, value);
     #endif
@@ -107,47 +159,19 @@ size_t PrintElem(Elem value, FILE *fp = nullptr)
             return ERROR_LOGS_OPEN;
         fprintf(fp, format, value);
     #endif
+
+    return NO_ERROR; 
 }
-
-//!------------------------------
-//!status = true  if stack is ready to be used
-//!status = false if stack wasn`t constructed or was destructed
-//!
-//!------------------------------
-typedef struct LogInfo
-{
-    char name[100]     = "(null)";
-    char function[100] = "(null)";
-    char file[100]     = "(null)";
-    int  line          = POISON;
-    bool status        = false;
-} LogInfo;
-
-typedef struct Stack
-{
-    size_t left_border = KENAR;
-
-    LogInfo debug = {};
-
-    Elem *data     = (Elem*)POISON_PTR;
-    int   size     = POISON;
-    int   capacity = POISON - 1;
-
-    size_t struct_hash = 0;
-    size_t data_hash   = 0;
-
-    size_t right_border = KENAR ^ 1;
-} Stack;
 
 size_t GetHash(void* struct_ptr, size_t size)
 {
-    if (struct_ptr == nullptr || size < 0 || size == POISON)
+    if (struct_ptr == nullptr || size == POISON)
         return POISON;
 
     char* ptr = (char*)struct_ptr;
 
     size_t hash = 5381;
-    for(int i = 0; i < size; i++)
+    for(size_t i = 0; i < size; i++)
         hash = (size_t)(ptr[0] + hash*33);
 
     return hash;
@@ -162,6 +186,8 @@ size_t GetHash(void* struct_ptr, size_t size)
 void DumpStack(Stack *stk, int deep, const char function[], const char file[], int line)
 {
     FILE* fp = fopen(LOGS, "a");
+    if (fp == nullptr)
+        return;
     
     LogPrintf(fp, "%s at %s(%d):\n", function, file, line);
     if (stk == nullptr)
@@ -188,7 +214,7 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
     LogPrintf(fp, "\tdata[%p]\n", stk->data);
     LogPrintf(fp, "\t{\n");
 
-    if (deep > 1 && stk->data != nullptr && stk->size != POISON && stk->capacity != POISON && stk->size <= stk->capacity && stk->capacity >= 0 && stk->size >= 0)
+    if (deep > 1 && stk->data != nullptr && stk->size != POISON && stk->capacity != POISON && stk->size <= stk->capacity)
     {
         #if (PROTECTION_LEVEL & CANARY_PROTECTION)
         {
@@ -197,9 +223,9 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
         }
         #endif
 
-        int i = 0;
         if (deep > 2 || stk->capacity <= 20)
         {
+            size_t i = 0;
             for(i = 0; i < stk->size; i++)
             {
                 LogPrintf(fp, "\t\t*[%d] = ", i);
@@ -217,8 +243,8 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
         }
         else
         {
-            int out = 10;
-            for(int i = 0; i < out; i++)
+            size_t out = 10;
+            for(size_t i = 0; i < out; i++)
             {
                 LogPrintf(fp, "\t\t");
                 if (stk->size > i)
@@ -228,7 +254,7 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
                 LogPrintf(fp, "\n");
             }
             LogPrintf(fp, "\t\t...\n");
-            for(int i = stk->capacity - out; i < stk->capacity; i++)
+            for(size_t i = stk->capacity - out; i < stk->capacity; i++)
             {
                 LogPrintf(fp, "\t\t");
                 if (stk->size > i)
@@ -245,16 +271,22 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
     fclose(fp);
 }
 
-size_t StackCheck(Stack* stk)
+size_t StackCheck(Stack* stk, int line, const char function[], const char file[])
 {
+    FILE* fp = fopen(LOGS, "a");
+    if (fp == nullptr)
+    {
+        return ERROR_LOGS_OPEN;
+    }
+
     size_t error = NO_ERROR;
     if (stk == nullptr)
         error |= NULL_STACK_POINTER;
     else
     {
-        if (stk->size < 0 || stk->size == POISON)
+        if (stk->size == POISON)
             error |= WRONG_SIZE;
-        if (stk->capacity < 0|| stk->capacity == POISON)
+        if (stk->capacity == POISON || stk->capacity == POISON - 1)
             error |= WRONG_CAPACITY;
         if (stk->size > stk->capacity)
             error |= SIZE_BIGGER_CAPACITY;
@@ -274,7 +306,7 @@ size_t StackCheck(Stack* stk)
             {
                 if (((size_t*)stk->data)[-1] != KENAR)
                     error |= LEFT_BORDER_DAMAGED;
-                if (stk->capacity >= 0 && stk->capacity != POISON - 1 && 
+                if (stk->capacity != POISON - 1 && 
                     *(size_t*)((char*)stk->data + stk->capacity*sizeof(Elem)) != KENAR ^ 1)
                     error |= RIGHT_BORDER_DAMAGED;
             }
@@ -283,40 +315,39 @@ size_t StackCheck(Stack* stk)
         
         #if (PROTECTION_LEVEL & HASH_PROTECTION)
         {
-            int old_hash = stk->struct_hash;
+            size_t old_hash = stk->struct_hash;
             stk->struct_hash = 0;
-            int now_hash = GetHash(stk, sizeof(Stack));
+            size_t now_hash = GetHash(stk, sizeof(Stack));
             stk->struct_hash = old_hash;
             if (stk->struct_hash != now_hash)
+            {
+                LogPrintf(fp, "Right hash = %zu\n", now_hash);
+                LogPrintf(fp, "Real  hash = %zu\n", stk->struct_hash);
                 error |= STRUCT_HASH_MISMATCH;
+            }
         }
         #endif
     }
     
-    FILE* fp = fopen(LOGS, "a");
     LogPrintf(fp, "Stack = %p\n" "Chech status = %d\n", stk, error);
+    LogPrintf(fp, "At %s in %s(%d)\n", function, file, line); 
     if (error != 0)
     {
-        for(int i = 0; i < 32; i++)
+        for(size_t i = 0; i < 32; i++)
             if (error & (1 << i))
                 LogPrintf(fp, ERROR_DESCRIPTION[i]);
         LogPrintf(fp, "\n");
     }
+    LogPrintf(fp, "\n");
     fclose(fp);
 
     return error;
 }
 
-#define DUMP_STACK(stk) DumpStack(&stk, DUMP_LEVEL, __PRETTY_FUNCTION__, __FILE__, __LINE__)
 
-#define OK_ASSERT(stk) {             \
-    StackCheck(&stk);                  \
-    DUMP_STACK(stk);                   \
-}
 
 size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]) 
 {
-    OK_ASSERT(*stk);
     size_t error = 0;
     *stk = {};
     stk->capacity = capacity;
@@ -325,6 +356,7 @@ size_t StackConstructor(Stack* stk, int capacity, int line, const char function[
     #if (PROTECTION_LEVEL & CANARY_PROTECTION)
         new_capacity += sizeof(KENAR)*2;
     #endif
+
     char* mem_block = (char*)calloc(new_capacity, 1);
     if (mem_block == nullptr)
     {
@@ -350,21 +382,21 @@ size_t StackConstructor(Stack* stk, int capacity, int line, const char function[
     stk->size = 0;
 
     stk->debug = {};
-    strcpy_(stk->debug.file, file);
-    strcpy_(stk->debug.function, function);
-    strcpy_(stk->debug.name, name);
+    strcpy(stk->debug.file, file);
+    strcpy(stk->debug.function, function);
+    strcpy(stk->debug.name, name);
     stk->debug.line   = line;
     stk->debug.status = true;
 
-    #if (PROTECTION_LEVEL & CANARY_PROTECTION) 
-        stk->struct_hash = GetHash(stk, sizeof(stk));
+    #if (PROTECTION_LEVEL & HASH_PROTECTION) 
+        stk->struct_hash = 0;
+        stk->struct_hash = GetHash(stk, sizeof(*stk));
     #endif
 
     OK_ASSERT(*stk);
     return error;
 }
 
-#define StackCtor(stk, capacity) StackConstructor(stk, capacity, __LINE__, __PRETTY_FUNCTION__, __FILE__, #stk)
 
 size_t StackDtor(Stack* stk)
 {
@@ -377,10 +409,10 @@ size_t StackDtor(Stack* stk)
     #else
         free(stk->data);
     #endif
-    stk->data        = (Elem*)POISON_PTR;
+    stk->data         = (Elem*)POISON_PTR;
 
-    stk->data_hash   = 0;
-    stk->struct_hash = 0;
+    stk->data_hash    = 0;
+    stk->struct_hash  = 0;
 
     stk->debug.status = 0;
 
@@ -560,6 +592,7 @@ Elem StackPop(Stack* stk, size_t *err = nullptr)
     }
     else
     {
+        StackCheck(stk, __LINE__, __PRETTY_FUNCTION__, __FILE__);
         if (err != nullptr) 
             *err = WRONG_SIZE;
         return POISON;
