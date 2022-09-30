@@ -1,5 +1,5 @@
 # Stack 
-Realisation of a stack in C with two types of protection for different data structures.
+Implementation of a stack in C with two types of protection for different data structures.
 
 ## Using other type of elements
 To specify the data type you are using, use

@@ -15,30 +15,31 @@ enum ErrorCodes
 {
     NO_ERROR                = 0,
     NULL_STACK_POINTER      = 1,
-    MEMORY_ALLOCATION_ERROR = 2,
-    WRONG_SIZE              = 4,
-    WRONG_CAPACITY          = 8,
-    SIZE_BIGGER_CAPACITY    = 16,
-    NULL_DATA               = 32,
-    ERROR_LOGS_OPEN         = 64,
-    LEFT_BORDER_DAMAGED     = 128,
-    RIGHT_BORDER_DAMAGED    = 256,
-    STRUCT_HASH_MISMATCH    = 512,
-    DATA_HASH_MISMATCH      = 1024,
-    DEBUG_INFO_DAMAGED      = 2048,
+    MEMORY_ALLOCATION_ERROR = 1<<1,
+    WRONG_SIZE              = 1<<2,
+    WRONG_CAPACITY          = 1<<3,
+    SIZE_BIGGER_CAPACITY    = 1<<4,
+    NULL_DATA               = 1<<5,
+    ERROR_LOGS_OPEN         = 1<<6,
+    LEFT_BORDER_DAMAGED     = 1<<7,
+    RIGHT_BORDER_DAMAGED    = 1<<8,
+    STRUCT_HASH_MISMATCH    = 1<<9,
+    DATA_HASH_MISMATCH      = 1<<10,
+    DEBUG_INFO_DAMAGED      = 1<<11,
 };
 
-const char ERROR_DESCRIPTION[][150] = {{"Pointer to stack = nullptr\n"},
-                                       {"Error during memmory allocation\n"},
-                                       {"Negative or poison size\n"},
-                                       {"Negative or poison capacity\n"},
-                                       {"Size is bigger then capacity\n"},
-                                       {"Pointer to stack.data = nullptr\n"},
-                                       {"Error during open logs file\n"},
-                                       {"The left boundary element is damaged. Other data in the structure may have been changed\n"},
-                                       {"The right boundary element is damaged. Other data in the structure may have been changed\n"},
-                                       {"Structure of stack was damaged\n"},
-                                       {"Stack elements was damaged\n"}};
+const char* const ERROR_DESCRIPTION[] = { "Pointer to stack = nullptr\n",
+                                    "Error during memmory allocation\n",
+                                    "Negative or poison size\n",
+                                    "Negative or poison capacity\n",
+                                    "Size is bigger then capacity\n",
+                                    "Pointer to stack.data = nullptr\n",
+                                    "Error during open logs file\n",
+                                    "The left boundary element is damaged. Other data in the structure may have been changed\n",
+                                    "The right boundary element is damaged. Other data in the structure may have been changed\n",
+                                    "Structure of stack was damaged\n",
+                                    "Stack elements was damaged\n",
+                                    "Bebug info from stack damaged"};
 
 const char LOGS[]           = "StackLogs.txt";
 const int  DUMP_LEVEL       = 1; //!This constant is used to print stack elements to logs in right format
@@ -65,11 +66,11 @@ const int    OUTPUT_TYPE = 0;   //!This constant is used to print stack elements
 //!------------------------------
 typedef struct LogInfo
 {
-    char name[100]     = "(null)";
-    char function[100] = "(null)";
-    char file[100]     = "(null)";
-    int  line          = POISON;
-    bool status        = false;
+    const char* name     = "(null)";
+    const char* function = "(null)";
+    const char* file     = "(null)";
+    int  line            = POISON;
+    bool status          = false;
 } LogInfo;
 
 typedef struct Stack
@@ -85,7 +86,7 @@ typedef struct Stack
     size_t struct_hash = 0;
     size_t data_hash   = 0;
 
-    size_t right_border = KENAR ^ 1;
+    size_t right_border = (size_t)(-1)^KENAR;
 } Stack;
 
 
@@ -344,7 +345,7 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
 
     return error;
 }
-
+ 
 size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]) 
 {
     size_t error = 0;
@@ -380,12 +381,12 @@ size_t StackConstructor(Stack* stk, int capacity, int line, const char function[
     }
     stk->size = 0;
 
-    stk->debug = {};
-    strcpy(stk->debug.file, file);
-    strcpy(stk->debug.function, function);
-    strcpy(stk->debug.name, name);
-    stk->debug.line   = line;
-    stk->debug.status = true;
+    stk->debug          = {};
+    stk->debug.file     = file;
+    stk->debug.function = function;
+    stk->debug.name     = name;
+    stk->debug.line     = line;
+    stk->debug.status   = true;
 
     #if (PROTECTION_LEVEL & HASH_PROTECTION) 
         stk->struct_hash = 0;

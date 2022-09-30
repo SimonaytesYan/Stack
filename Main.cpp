@@ -9,6 +9,7 @@ typedef int Elem;
 
 int main()
 {
+    printf("%d\n", WRONG_SIZE);
     Stack stk = {};
     StackCtor(&stk, 0);
 
