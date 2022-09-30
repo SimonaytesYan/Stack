@@ -25,6 +25,7 @@ enum ErrorCodes
     RIGHT_BORDER_DAMAGED    = 256,
     STRUCT_HASH_MISMATCH    = 512,
     DATA_HASH_MISMATCH      = 1024,
+    DEBUG_INFO_DAMAGED      = 2048,
 };
 
 const char ERROR_DESCRIPTION[][150] = {{"Pointer to stack = nullptr\n"},
@@ -77,9 +78,9 @@ typedef struct Stack
 
     LogInfo debug = {};
 
-    Elem *data     = (Elem*)POISON_PTR;
-    size_t   size     = POISON;
-    size_t   capacity = POISON - 1;
+    Elem   *data    = (Elem*)POISON_PTR;
+    size_t size     = POISON;
+    size_t capacity = POISON - 1;
 
     size_t struct_hash = 0;
     size_t data_hash   = 0;
@@ -185,7 +186,12 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
         return;
     }
     LogPrintf(fp, "Stack[%p] \"%s\" at %s at %s(%d):\n", stk, stk->debug.name, stk->debug.function, stk->debug.file, stk->debug.line);
-    
+    LogPrintf(fp, "Status: ");
+    if (stk->debug.status)
+        LogPrintf(fp, "enable\n");
+    else
+        LogPrintf(fp, "disable\n");
+
     #if (PROTECTION_LEVEL & CANARY_PROTECTION)
     {
         LogPrintf(fp, "Left border  = %llu\n", stk->left_border);
@@ -201,6 +207,7 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
 
     LogPrintf(fp, "\tdata[%p]\n", stk->data);
     LogPrintf(fp, "\t{\n");
+
 
     if (deep > 1 && stk->data != nullptr && stk->size != POISON && stk->capacity != POISON && stk->size <= stk->capacity)
     {
@@ -263,9 +270,7 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
 {
     FILE* fp = fopen(LOGS, "a");
     if (fp == nullptr)
-    {
         return ERROR_LOGS_OPEN;
-    }
 
     size_t error = NO_ERROR;
     if (stk == nullptr)
@@ -315,7 +320,15 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
             }
         }
         #endif
+
+        if (stk->debug.file == nullptr)
+            error |= DEBUG_INFO_DAMAGED; 
+        if (stk->debug.name == nullptr)
+            error |= DEBUG_INFO_DAMAGED; 
+        if (stk->debug.line == POISON)
+            error |= DEBUG_INFO_DAMAGED; 
     }
+
     
     LogPrintf(fp, "Stack = %p\n" "Chech status = %d\n", stk, error);
     LogPrintf(fp, "At %s in %s(%d)\n", function, file, line); 
@@ -331,8 +344,6 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
 
     return error;
 }
-
-
 
 size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]) 
 {
@@ -402,7 +413,7 @@ size_t StackDtor(Stack* stk)
     stk->data_hash    = 0;
     stk->struct_hash  = 0;
 
-    stk->debug.status = 0;
+    stk->debug.status = false;
 
     return NO_ERROR;
 }
