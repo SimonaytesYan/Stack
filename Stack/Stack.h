@@ -90,14 +90,15 @@ typedef struct Stack
 
 size_t LogPrintf(FILE* fp, const char *format, ...);
 size_t PrintElem(Elem value, FILE *fp = nullptr);
-void DumpStack(Stack *stk, int deep, const char function[], const char file[], int line);
+void   DumpStack(Stack *stk, int deep, const char function[], const char file[], int line);
+
 size_t StackCheck(Stack* stk, int line, const char function[], const char file[]);
 size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]);
 size_t StackDtor(Stack* stk);
 size_t StackResizeUp(Stack* stk);
 size_t StackPush(Stack* stk, Elem value);
 size_t StackResizeDown(Stack* stk);
-Elem StackPop(Stack* stk, size_t *err);
+Elem   StackPop(Stack* stk, size_t *err);
 
 #define DUMP_STACK(stk) DumpStack(&stk, DUMP_LEVEL, __PRETTY_FUNCTION__, __FILE__, __LINE__)
 
