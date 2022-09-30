@@ -12,7 +12,7 @@ size_t GetHash(void* struct_ptr, size_t size)
 
     size_t hash = 5381;
     for(size_t i = 0; i < size; i++)
-        hash = (size_t)(ptr[0] + hash*33);
+        hash = (size_t)(ptr[i] + hash*33);
 
     return hash;
 }

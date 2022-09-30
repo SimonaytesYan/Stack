@@ -434,6 +434,12 @@ size_t StackResizeUp(Stack* stk)
 
         char* mem_block = (char*)calloc(new_capacity, 1);
 
+        if (mem_block == nullptr)
+        {
+            OK_ASSERT(*stk);
+            return MEMORY_ALLOCATION_ERROR;
+        }
+
         #if (PROTECTION_LEVEL & CANARY_PROTECTION)
         {
             *(size_t*)mem_block = KENAR;
@@ -443,12 +449,6 @@ size_t StackResizeUp(Stack* stk)
         #else
             stk->data = (Elem*)(mem_block);
         #endif
-
-        if (stk->data == nullptr)
-        {
-            OK_ASSERT(*stk);
-            return MEMORY_ALLOCATION_ERROR;
-        }
 
         OK_ASSERT(*stk);
         return NO_ERROR;
