@@ -17,4 +17,4 @@ size_t GetHash(void* struct_ptr, size_t size)
     return hash;
 }
 
-#endif
+#endif  //__HASH_SYM__
