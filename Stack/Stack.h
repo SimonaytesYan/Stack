@@ -347,6 +347,8 @@ size_t StackResizeDown(Stack* stk)
     if (stk->capacity == 0)
         return NO_ERROR;
 
+    if (stk->size)
+        return NO_ERROR;
     if (stk->capacity/(double)stk->size >= FOR_RESIZE*FOR_RESIZE)
     {
         size_t error = ChangeStackData(stk, stk->capacity / FOR_RESIZE);
@@ -400,11 +402,13 @@ Elem StackPop(Stack* stk, size_t *err = nullptr)
 
 uint64_t GetStructHash(Stack* stk)
 {
-    uint64_t old_hash = stk->struct_hash;
-    stk->struct_hash = 0;
-    uint64_t now_hash = GetHash(stk, sizeof(Stack));
-    stk->struct_hash = old_hash;
-    return now_hash;
+    #if (PROTECTION_LEVEL & HASH_PROTECTION)
+        uint64_t old_hash = stk->struct_hash;
+        stk->struct_hash = 0;
+        uint64_t now_hash = GetHash(stk, sizeof(Stack));
+        stk->struct_hash = old_hash;
+        return now_hash;
+    #endif
 }
 
 void Rehash(Stack* stk)
