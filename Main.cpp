@@ -60,6 +60,18 @@ int main()
     StackCtor(&stk, 0);
     
     printf("%d\n", StackPush(&stk, 1000));
+    printf("%d\n", StackPush(&stk, 100));
+    printf("%d\n", StackPush(&stk, 10));
+    printf("%d\n", StackPush(&stk, 1));
+    printf("%d\n", StackPush(&stk, -1000));
+    printf("%d\n", StackPush(&stk, -100));
+    printf("%d\n", StackPush(&stk, -10));
+    printf("%d\n", StackPush(&stk, -1));
+    printf("%d\n", StackPush(&stk, 0));
+    printf("%d\n", StackPush(&stk, 1));
+    printf("%d\n", StackPush(&stk, 2));
+    printf("%d\n", StackPush(&stk, 3));
+    printf("%d\n", StackPush(&stk, 4));
 
     DUMP_STACK(stk);
 }

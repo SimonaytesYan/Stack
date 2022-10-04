@@ -6,16 +6,6 @@ To specify the data type you are using, use
 ```c++
 typedef *data_type* Elem;
 ```
-And you should change 
-```c++
-const int OUTPUT_TYPE
-```
-to right value. This need to normal logging:
-* 0 - int
-* 1 - char
-* 2 - float
-* 3 - double
-* 4 - long long
 
 ## Using protection
 ```c++

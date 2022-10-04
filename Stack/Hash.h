@@ -1,9 +1,9 @@
 #ifndef __HASH_SYM__
 #define __HASH_SYM__
 
-size_t GetHash(void* struct_ptr, size_t size);
+uint64_t GetHash(void* struct_ptr, size_t size);
 
-size_t GetHash(void* struct_ptr, size_t size)
+uint64_t GetHash(void* struct_ptr, size_t size)
 {
     if (struct_ptr == nullptr)
         return -1;

@@ -12,12 +12,13 @@
 #include "Logging.h"
 #include "StackErrors.h"
 
-const char LOGS[]           = "StackLogs.txt";
-const int  DUMP_LEVEL       = 2; //!This constant is used to print stack elements to logs in right format
+const char LOGS[]            = "StackLogs.txt";
+const int  DUMP_LEVEL        = 2;  //!This constant is used to print stack elements to logs in right format
+const int  HOW_MANY_ELEM_OUT = 10; //!This constant is used to determine how many stack elements to output when DUMP_LEVEL = 2
 
 #define CANARY_PROTECTION 1
 #define HASH_PROTECTION   2
-#define PROTECTION_LEVEL  CANARY_PROTECTION | HASH_PROTECTION
+#define PROTECTION_LEVEL  (CANARY_PROTECTION | HASH_PROTECTION)
 
 const double   FOR_RESIZE  = 2; 
 const Elem     POISON      = 0X7FFFFFFF;
@@ -49,23 +50,24 @@ typedef struct Stack
     size_t size     = POISON;
     size_t capacity = POISON - 1;
 
-    size_t struct_hash = 0;
-    size_t data_hash   = 0;
+    uint64_t struct_hash = 0;
+    uint64_t data_hash   = 0;
 
     uint64_t right_border = RIGHT_KENAR;
 } Stack;
 
-
-size_t LogPrintf(FILE* fp, const char *format, ...);
 void   DumpStack(Stack *stk, int deep, const char function[], const char file[], int line);
 
-size_t StackCheck(Stack* stk, int line, const char function[], const char file[]);
-size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]);
-size_t StackDtor(Stack* stk);
-size_t StackResizeUp(Stack* stk);
-size_t StackPush(Stack* stk, Elem value);
-size_t StackResizeDown(Stack* stk);
-Elem   StackPop(Stack* stk, size_t *err);
+size_t   StackCheck(Stack* stk, int line, const char function[], const char file[]);
+size_t   StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]);
+size_t   StackDtor(Stack* stk);
+size_t   StackResizeUp(Stack* stk);
+size_t   StackPush(Stack* stk, Elem value);
+size_t   StackResizeDown(Stack* stk);
+Elem     StackPop(Stack* stk, size_t *err);
+uint64_t GetStructHash(Stack* stk);
+size_t   ChangeStackData(Stack* stk, int resizeType);
+void     Rehash(Stack* stk);
 
 #define DUMP_STACK(stk) { DumpStack(&stk, DUMP_LEVEL, __PRETTY_FUNCTION__, __FILE__, __LINE__); }
 
@@ -82,25 +84,6 @@ void DoDumpStack(Stack* stk)
 }
 
 #define StackCtor(stk, capacity) StackConstructor(stk, capacity, __LINE__, __PRETTY_FUNCTION__, __FILE__, #stk)
-
-size_t LogPrintf(FILE* fp, const char *format, ...)
-{
-    va_list args;
-    va_start(args, format);
-
-    #ifdef LOGS_TO_CONSOLE
-        vprintf(format, args);
-    #endif
-
-    #ifdef LOGS_TO_FILE
-        if (fp == nullptr)
-            return ERROR_LOGS_OPEN;
-        vfprintf(fp, format, args);
-    #endif
-
-    return NO_ERROR;
-    va_end(args);
-}
 
 //!------------------------------
 //!deep = 1 - dump without printing stack elements
@@ -170,12 +153,10 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
                 PrintElem(stk->data[i], fp);
                 LogPrintf(fp, "\n");
             }
-
         }
         else
         {
-            size_t out = 10;
-            for(size_t i = 0; i < out; i++)
+            for(size_t i = 0; i < HOW_MANY_ELEM_OUT; i++)
             {
                 LogPrintf(fp, "\t\t");
                 if (stk->size > i)
@@ -185,7 +166,7 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
                 LogPrintf(fp, "\n");
             }
             LogPrintf(fp, "\t\t...\n");
-            for(size_t i = stk->capacity - out; i < stk->capacity; i++)
+            for(size_t i = stk->capacity - HOW_MANY_ELEM_OUT; i < stk->capacity; i++)
             {
                 LogPrintf(fp, "\t\t");
                 if (stk->size > i)
@@ -215,19 +196,23 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
     {
         if (stk->size == POISON)
             error |= WRONG_SIZE;
+        
         if (stk->capacity == POISON || stk->capacity == POISON - 1)
             error |= WRONG_CAPACITY;
+        
         if (stk->size > stk->capacity)
             error |= SIZE_BIGGER_CAPACITY;
+        
         if (stk->data == nullptr || stk->data == POISON_PTR)
             error |= NULL_DATA;
         else
         {
             #if (PROTECTION_LEVEL & HASH_PROTECTION)
             {
-                size_t hash = GetHash(stk->data, stk->capacity*sizeof(Elem));
+                uint64_t hash = GetHash(stk->data, stk->capacity*sizeof(Elem));
                 if (hash != stk->data_hash)
                     error |= DATA_HASH_MISMATCH;
+                
             }
             #endif
 
@@ -244,14 +229,9 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
         
         #if (PROTECTION_LEVEL & HASH_PROTECTION)
         {
-            size_t old_hash = stk->struct_hash;
-            stk->struct_hash = 0;
-            size_t now_hash = GetHash(stk, sizeof(Stack));
-            stk->struct_hash = old_hash;
+            uint64_t now_hash = GetStructHash(stk);
             if (stk->struct_hash != now_hash)
-            {
                 error |= STRUCT_HASH_MISMATCH;
-            }
         }
         #endif
 
@@ -278,7 +258,7 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
 
     return error;
 }
- 
+
 size_t StackConstructor(Stack* stk, int capacity, int line, const char function[], const char file[], const char name[]) 
 {
     size_t error = 0;
@@ -321,10 +301,7 @@ size_t StackConstructor(Stack* stk, int capacity, int line, const char function[
     stk->debug.line     = line;
     stk->debug.status   = true;
 
-    #if (PROTECTION_LEVEL & HASH_PROTECTION) 
-        stk->struct_hash = 0;
-        stk->struct_hash = GetHash(stk, sizeof(*stk));
-    #endif
+    Rehash(stk);
 
     OK_ASSERT(*stk);
     return error;
@@ -356,68 +333,12 @@ size_t StackResizeUp(Stack* stk)
 {
     OK_ASSERT(*stk);
 
-    if (stk->capacity == 0)
-    {
-        stk->capacity = 10;
-
-        size_t new_capacity = stk->capacity*sizeof(Elem);
-        #if (PROTECTION_LEVEL & CANARY_PROTECTION)
-            new_capacity += sizeof(LEFT_KENAR) + sizeof(RIGHT_KENAR);
-        #endif
-
-        char* mem_block = (char*)calloc(new_capacity, 1);
-
-        if (mem_block == nullptr)
-        {
-            OK_ASSERT(*stk);
-            return MEMORY_ALLOCATION_ERROR;
-        }
-
-        #if (PROTECTION_LEVEL & CANARY_PROTECTION)
-        {
-            *(uint64_t*)mem_block = LEFT_KENAR;
-            *(uint64_t*)(mem_block + stk->capacity*sizeof(Elem) + sizeof(LEFT_KENAR)) = RIGHT_KENAR;
-            stk->data = (Elem*)(mem_block + sizeof(LEFT_KENAR));
-        }
-        #else
-            stk->data = (Elem*)(mem_block);
-        #endif
-
-        return NO_ERROR;
-    }
-
-    stk->capacity = stk->capacity * FOR_RESIZE;
-    size_t new_capacity = stk->capacity*sizeof(Elem);
-    #if (PROTECTION_LEVEL & CANARY_PROTECTION)
-        new_capacity += sizeof(LEFT_KENAR) + sizeof(RIGHT_KENAR);
-    #endif
-
-    char* mem_block = nullptr;
-    #if (PROTECTION_LEVEL & CANARY_PROTECTION)
-    {
-        mem_block = (char*)realloc((char*)stk->data - sizeof(LEFT_KENAR), new_capacity);
-        if (mem_block == nullptr)
-            return MEMORY_ALLOCATION_ERROR;
-        
-        *(uint64_t*)mem_block = LEFT_KENAR;
-        *(uint64_t*)(mem_block + stk->capacity*sizeof(Elem) + sizeof(LEFT_KENAR)) = RIGHT_KENAR;
-        stk->data = (Elem*)(mem_block + sizeof(LEFT_KENAR));
-    }
-    #else
-    {
-        mem_block = (char*)realloc((char*)stk->data, new_capacity);
-        if (mem_block == nullptr)
-        {
-            stk->data = nullptr;
-            return MEMORY_ALLOCATION_ERROR;
-        }
-        stk->data = (Elem*)(mem_block);
-    }
-    #endif
-
-    if (stk->data == nullptr)
-        return MEMORY_ALLOCATION_ERROR;
+    size_t error = ChangeStackData(stk, 1);
+    if (error != NO_ERROR)
+        return error;
     
+    Rehash(stk);    
+
     OK_ASSERT(*stk);
     return NO_ERROR;
 }
@@ -437,14 +358,7 @@ size_t StackPush(Stack* stk, Elem value)
     }
     stk->data[stk->size++] = value;
 
-    #if (PROTECTION_LEVEL & HASH_PROTECTION)
-    {
-        stk->data_hash = GetHash(stk->data, sizeof(Elem)*stk->capacity);
-
-        stk->struct_hash = 0;
-        stk->struct_hash = GetHash(stk, sizeof(Stack));
-    }
-    #endif
+    Rehash(stk);
 
     OK_ASSERT(*stk);
     return NO_ERROR;
@@ -459,26 +373,10 @@ size_t StackResizeDown(Stack* stk)
 
     if (stk->capacity/(double)stk->size >= FOR_RESIZE*FOR_RESIZE)
     {
-        stk->capacity = stk->capacity / FOR_RESIZE;
-
-        size_t new_capacity = stk->capacity*sizeof(Elem);
-        #if (PROTECTION_LEVEL & CANARY_PROTECTION)
-        {
-            new_capacity += sizeof(LEFT_KENAR) + sizeof(RIGHT_KENAR);
-            char* mem_block = (char*)realloc((char*)stk->data - sizeof(LEFT_KENAR), new_capacity);
-            if (mem_block == nullptr)
-            {
-                stk->data = nullptr;
-                return MEMORY_ALLOCATION_ERROR;
-            }
-
-            *(uint64_t*)mem_block = LEFT_KENAR;
-            *(uint64_t*)(mem_block + stk->capacity*sizeof(Elem) + sizeof(LEFT_KENAR)) = RIGHT_KENAR;
-            stk->data = (Elem*)(mem_block + sizeof(LEFT_KENAR));
-        }
-        #else
-            stk->data = (Elem*)realloc(stk->data, new_capacity);
-        #endif
+        size_t error = ChangeStackData(stk, -1);
+        if (error != 0)
+            return error;
+        Rehash(stk);
     }
     
     OK_ASSERT(*stk);
@@ -513,22 +411,80 @@ Elem StackPop(Stack* stk, size_t *err = nullptr)
             return POISON;
         }
 
-        #if (PROTECTION_LEVEL & HASH_PROTECTION)
-        {
-            stk->data_hash = GetHash(stk->data, stk->capacity*sizeof(Elem));
-            stk->struct_hash = 0;
-            stk->struct_hash = GetHash(stk, sizeof(Stack));
-        }
-        #endif
         return result;
     }
     else
     {
-        StackCheck(stk, __LINE__, __PRETTY_FUNCTION__, __FILE__);
+        OK_ASSERT(*stk);
         if (err != nullptr) 
             *err = WRONG_SIZE;
         return POISON;
     }
+}
+
+uint64_t GetStructHash(Stack* stk)
+{
+    uint64_t old_hash = stk->struct_hash;
+    stk->struct_hash = 0;
+    uint64_t now_hash = GetHash(stk, sizeof(Stack));
+    stk->struct_hash = old_hash;
+    return now_hash;
+}
+
+void Rehash(Stack* stk)
+{
+
+    #if (PROTECTION_LEVEL & HASH_PROTECTION)
+    {
+        stk->data_hash   = GetHash(stk->data, stk->capacity*sizeof(Elem));
+        stk->struct_hash = GetStructHash(stk);
+    }
+    #endif
+}
+
+//!--------------
+//!resizeType > 0 to change up
+//!resizeType < 0 to change down
+//!
+//!----------------
+size_t ChangeStackData(Stack* stk, int resizeType)
+{
+    OK_ASSERT(*stk);
+
+    if (resizeType > 0)
+    {
+        if (stk->capacity == 0)
+            stk->capacity = 10;
+        else
+            stk->capacity = stk->capacity * FOR_RESIZE;
+    }
+    else if (resizeType < 0)
+    {
+        stk->capacity = stk->capacity / FOR_RESIZE;
+    }
+
+    uint64_t new_capacity = stk->capacity*sizeof(Elem);
+    #if (PROTECTION_LEVEL & CANARY_PROTECTION)
+    {
+        new_capacity += sizeof(LEFT_KENAR) + sizeof(RIGHT_KENAR);
+        char* mem_block = (char*)realloc((char*)stk->data - sizeof(LEFT_KENAR), new_capacity);
+        if (mem_block == nullptr)
+        {
+            stk->data = nullptr;
+            return MEMORY_ALLOCATION_ERROR;
+        }
+
+        *(uint64_t*)mem_block = LEFT_KENAR;
+        *(uint64_t*)(mem_block + stk->capacity*sizeof(Elem) + sizeof(LEFT_KENAR)) = RIGHT_KENAR;
+        stk->data = (Elem*)(mem_block + sizeof(LEFT_KENAR));
+    }
+    #else
+        stk->data = (Elem*)realloc(stk->data, new_capacity);
+    #endif
+
+    Rehash(stk);
+
+    return NO_ERROR;
 }
 
 #endif  //__STACK_SYM__
