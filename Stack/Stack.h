@@ -263,35 +263,7 @@ size_t StackConstructor(Stack* stk, int capacity, int line, const char function[
 {
     size_t error = 0;
     *stk = {};
-    stk->capacity = capacity;
-
-    size_t new_capacity = stk->capacity*sizeof(Elem);
-    #if (PROTECTION_LEVEL & CANARY_PROTECTION)
-        new_capacity += sizeof(LEFT_KENAR) + sizeof(RIGHT_KENAR);
-    #endif
-
-    char* mem_block = (char*)calloc(new_capacity, 1);
-    if (mem_block == nullptr)
-    {
-        stk->data = nullptr;
-        error |= NULL_DATA | MEMORY_ALLOCATION_ERROR;
-    }
-    else
-    {
-        #if (PROTECTION_LEVEL & CANARY_PROTECTION)
-        {
-            *(uint64_t*)mem_block = LEFT_KENAR;
-            *(uint64_t*)(mem_block + stk->capacity*sizeof(Elem) + sizeof(LEFT_KENAR)) = RIGHT_KENAR;
-            stk->data = (Elem*)(mem_block + sizeof(LEFT_KENAR));
-        }
-        #else
-            stk->data = (Elem*)(mem_block);
-        #endif
-
-        #if (PROTECTION_LEVEL & HASH_PROTECTION)
-            stk->data_hash = GetHash(stk->data, stk->capacity*sizeof(Elem));
-        #endif
-    }
+    ChangeStackData(stk, capacity);
     stk->size = 0;
 
     stk->debug          = {};
@@ -333,7 +305,11 @@ size_t StackResizeUp(Stack* stk)
 {
     OK_ASSERT(*stk);
 
-    size_t error = ChangeStackData(stk, 1);
+    size_t error = NO_ERROR;
+    if (stk->capacity == 0)
+        error = ChangeStackData(stk, 10);
+    else
+        error = ChangeStackData(stk, stk->capacity * 2);
     if (error != NO_ERROR)
         return error;
     
@@ -373,7 +349,7 @@ size_t StackResizeDown(Stack* stk)
 
     if (stk->capacity/(double)stk->size >= FOR_RESIZE*FOR_RESIZE)
     {
-        size_t error = ChangeStackData(stk, -1);
+        size_t error = ChangeStackData(stk, stk->capacity / FOR_RESIZE);
         if (error != 0)
             return error;
         Rehash(stk);
@@ -432,8 +408,9 @@ uint64_t GetStructHash(Stack* stk)
 }
 
 void Rehash(Stack* stk)
-{
-
+{  
+    if (stk == nullptr)
+        return;
     #if (PROTECTION_LEVEL & HASH_PROTECTION)
     {
         stk->data_hash   = GetHash(stk->data, stk->capacity*sizeof(Elem));
@@ -442,32 +419,23 @@ void Rehash(Stack* stk)
     #endif
 }
 
-//!--------------
-//!resizeType > 0 to change up
-//!resizeType < 0 to change down
-//!
-//!----------------
-size_t ChangeStackData(Stack* stk, int resizeType)
+size_t ChangeStackData(Stack* stk, int newCapacity)
 {
     OK_ASSERT(*stk);
 
-    if (resizeType > 0)
-    {
-        if (stk->capacity == 0)
-            stk->capacity = 10;
-        else
-            stk->capacity = stk->capacity * FOR_RESIZE;
-    }
-    else if (resizeType < 0)
-    {
-        stk->capacity = stk->capacity / FOR_RESIZE;
-    }
+    stk->capacity = newCapacity;
 
     uint64_t new_capacity = stk->capacity*sizeof(Elem);
     #if (PROTECTION_LEVEL & CANARY_PROTECTION)
     {
         new_capacity += sizeof(LEFT_KENAR) + sizeof(RIGHT_KENAR);
-        char* mem_block = (char*)realloc((char*)stk->data - sizeof(LEFT_KENAR), new_capacity);
+        
+        char* mem_block = nullptr;
+        if (stk->data == nullptr)
+            mem_block = (char*)calloc(new_capacity, 1);
+        else    
+            mem_block = (char*)realloc((char*)stk->data - sizeof(LEFT_KENAR), new_capacity);
+
         if (mem_block == nullptr)
         {
             stk->data = nullptr;
