@@ -3,7 +3,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <assert.h>
 #include <string.h>
 #include <cstdint>
@@ -12,7 +11,6 @@
 #include "Logging.h"
 #include "StackErrors.h"
 
-const char LOGS[]            = "StackLogs.txt";
 const int  DUMP_LEVEL        = 2;  //!This constant is used to print stack elements to logs in right format
 const int  HOW_MANY_ELEM_OUT = 10; //!This constant is used to determine how many stack elements to output when DUMP_LEVEL = 2
 
@@ -92,48 +90,43 @@ void DoDumpStack(Stack* stk)
 //!
 //!-----------------------------
 void DumpStack(Stack *stk, int deep, const char function[], const char file[], int line)
-{
-    FILE* fp = fopen(LOGS, "a");
-    if (fp == nullptr)
-        return;
-    
-    LogPrintf(fp, "%s at %s(%d):\n", function, file, line);
+{    
+    LogPrintf("%s at %s(%d):\n", function, file, line);
     if (stk == nullptr)
     {
-        LogPrintf(fp, "Null pointer to stack\n");
-        fclose(fp);
+        LogPrintf("Null pointer to stack\n");
         return;
     }
-    LogPrintf(fp, "Stack[%p] \"%s\" at %s at %s(%d):\n", stk, stk->debug.name, stk->debug.function, stk->debug.file, stk->debug.line);
-    LogPrintf(fp, "Status: ");
+    LogPrintf("Stack[%p] \"%s\" at %s at %s(%d):\n", stk, stk->debug.name, stk->debug.function, stk->debug.file, stk->debug.line);
+    LogPrintf("Status: ");
     if (stk->debug.status)
-        LogPrintf(fp, "enable\n");
+        LogPrintf("enable\n");
     else
-        LogPrintf(fp, "disable\n");
+        LogPrintf("disable\n");
 
     #if (PROTECTION_LEVEL & CANARY_PROTECTION)
     {
-        LogPrintf(fp, "Left border  = %llu\n", stk->left_border);
-        LogPrintf(fp, "Rigth border = %llu\n", stk->right_border);
+        LogPrintf("Left border  = %llu\n", stk->left_border);
+        LogPrintf("Rigth border = %llu\n", stk->right_border);
     }
     #endif
 
-    LogPrintf(fp, "{\n");
-    LogPrintf(fp, "\tsize        = %d\n", stk->size);
-    LogPrintf(fp, "\tcapacity    = %d\n", stk->capacity);
-    LogPrintf(fp, "\tdata_hash   = %llu\n", stk->data_hash);
-    LogPrintf(fp, "\tstruct_hash = %llu\n", stk->struct_hash);
+    LogPrintf("{\n");
+    LogPrintf("\tsize        = %d\n", stk->size);
+    LogPrintf("\tcapacity    = %d\n", stk->capacity);
+    LogPrintf("\tdata_hash   = %llu\n", stk->data_hash);
+    LogPrintf("\tstruct_hash = %llu\n", stk->struct_hash);
 
-    LogPrintf(fp, "\tdata[%p]\n", stk->data);
-    LogPrintf(fp, "\t{\n");
+    LogPrintf("\tdata[%p]\n", stk->data);
+    LogPrintf("\t{\n");
 
 
     if (deep > 1 && stk->data != nullptr && stk->size != POISON && stk->capacity != POISON && stk->size <= stk->capacity)
     {
         #if (PROTECTION_LEVEL & CANARY_PROTECTION)
         {
-            LogPrintf(fp, "\t\tLeftCan  = %llu\n", ((size_t*)stk->data)[-1]);
-            LogPrintf(fp, "\t\tRightCan = %llu\n", *(size_t*)((char*)stk->data + sizeof(Elem)*stk->capacity));
+            LogPrintf("\t\tLeftCan  = %llu\n", ((size_t*)stk->data)[-1]);
+            LogPrintf("\t\tRightCan = %llu\n", *(size_t*)((char*)stk->data + sizeof(Elem)*stk->capacity));
         }
         #endif
 
@@ -142,53 +135,47 @@ void DumpStack(Stack *stk, int deep, const char function[], const char file[], i
             size_t i = 0;
             for(i = 0; i < stk->size; i++)
             {
-                LogPrintf(fp, "\t\t*[%d] = ", i);
-                PrintElem(stk->data[i], fp);
-                LogPrintf(fp, "\n");
+                LogPrintf("\t\t*[%d] = ", i);
+                PrintElem(stk->data[i]);
+                LogPrintf("\n");
             }
 
             for(i; i < stk->capacity; i++)
             {
-                LogPrintf(fp, "\t\t[%d] = ", i);
-                PrintElem(stk->data[i], fp);
-                LogPrintf(fp, "\n");
+                LogPrintf("\t\t[%d] = ", i);
+                PrintElem(stk->data[i]);
+                LogPrintf("\n");
             }
         }
         else
         {
             for(size_t i = 0; i < HOW_MANY_ELEM_OUT; i++)
             {
-                LogPrintf(fp, "\t\t");
+                LogPrintf("\t\t");
                 if (stk->size > i)
-                    LogPrintf(fp, "*");
-                LogPrintf(fp, "[%d] = ", i);
-                PrintElem(stk->data[i], fp);
-                LogPrintf(fp, "\n");
+                    LogPrintf("*");
+                LogPrintf("[%d] = ", i);
+                PrintElem(stk->data[i]);
+                LogPrintf("\n");
             }
-            LogPrintf(fp, "\t\t...\n");
+            LogPrintf("\t\t...\n");
             for(size_t i = stk->capacity - HOW_MANY_ELEM_OUT; i < stk->capacity; i++)
             {
-                LogPrintf(fp, "\t\t");
+                LogPrintf("\t\t");
                 if (stk->size > i)
-                    LogPrintf(fp, "*");
-                LogPrintf(fp, "[%d] = ", i);
-                PrintElem(stk->data[i], fp);
-                LogPrintf(fp, "\n");
+                    LogPrintf("*");
+                LogPrintf("[%d] = ", i);
+                PrintElem(stk->data[i]);
+                LogPrintf("\n");
             }
         }
     }
 
-    LogPrintf(fp, "\t}\n}\n\n");
-
-    fclose(fp);
+    LogPrintf("\t}\n}\n\n");
 }
 
 size_t StackCheck(Stack* stk, int line, const char function[], const char file[])
 {
-    FILE* fp = fopen(LOGS, "a");
-    if (fp == nullptr)
-        return ERROR_LOGS_OPEN;
-
     size_t error = NO_ERROR;
     if (stk == nullptr)
         error |= NULL_STACK_POINTER;
@@ -244,18 +231,17 @@ size_t StackCheck(Stack* stk, int line, const char function[], const char file[]
     }
 
     
-    LogPrintf(fp, "Stack = %p\n" "Chech status = %d\n", stk, error);
-    LogPrintf(fp, "At %s in %s(%d)\n", function, file, line); 
+    LogPrintf("Stack = %p\n" "Chech status = %d\n", stk, error);
+    LogPrintf("At %s in %s(%d)\n", function, file, line); 
     if (error != 0)
     {
         for(size_t i = 0; i < 32; i++)
             if (error & (1 << i))
-                LogPrintf(fp, ERROR_DESCRIPTION[i]);
-        LogPrintf(fp, "\n");
+                LogPrintf(ERROR_DESCRIPTION[i]);
+        LogPrintf("\n");
     }
-    LogPrintf(fp, "\n");
-    fclose(fp);
-
+    LogPrintf("\n");
+    
     return error;
 }
 

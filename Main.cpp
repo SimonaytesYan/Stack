@@ -5,6 +5,7 @@ typedef int Elem;
 #define LOGS_TO_FILE
 #define LOGS_TO_CONSOLE
 
+#include "Stack/Logging.h"
 #include "Stack/StackErrors.h"
 
 const int    OUTPUT_TYPE = 0;   //!This constant is used to print stack elements to logs in right format
@@ -14,7 +15,7 @@ const int    OUTPUT_TYPE = 0;   //!This constant is used to print stack elements
                                 //!3 - double
                                 //!4 - long long
 
-size_t PrintElem(int value, FILE *fp)
+size_t PrintElem(int value)
 {
     char format[5] = "%";
     switch (OUTPUT_TYPE)
@@ -42,10 +43,11 @@ size_t PrintElem(int value, FILE *fp)
     #ifdef LOGS_TO_CONSOLE
         printf(format, value);
     #endif
+
     #ifdef LOGS_TO_FILE
-        if (fp == nullptr)
+        if (logs_file == nullptr)
             return ERROR_LOGS_OPEN;
-        fprintf(fp, format, value);
+        fprintf(logs_file, format, value);
     #endif
 
     return NO_ERROR; 
